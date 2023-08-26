@@ -51,6 +51,7 @@ systemctl restart networking
 
 ```bash
 # Backup the original configuration file
+>>>>>>> 75badafb0d76c45fde4a89337dfcca112f9475b5
 cp /etc/nftables.conf /etc/nftables.conf.old
 
 # Enable and start nftables
