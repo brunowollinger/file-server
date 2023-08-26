@@ -15,7 +15,7 @@ export PATH=$PATH:/usr/sbin
 echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
 ```
 
-### Networking
+### Network Setup
 
 - [ ] Static IP Configuration
 
@@ -35,8 +35,8 @@ vim /etc/network/interfaces
 # Append or edit the interface entry
 auto eht0
 iface etho inet static
-    address 192.168.0.10/24 # IP address / Subnet mask format
-    gateway 192.168.0.1
+    address 192.168.15.180/24 # IP address / Subnet mask format
+    gateway 192.168.15.1
 
 # Save the file and restart the service
 systemctl restart networking
@@ -50,11 +50,14 @@ systemctl restart networking
     <summary>Commands</summary>
 
 ```bash
+# Backup the original configuration file
+cp /etc/nftables.conf /etc/nftables.conf.old
+
 # Enable and start nftables
 systemctl enable nftables && systemctl start nftables
 
 # Add SSH rule to prevent lockout to the server
-nft add rule inet filter input ip saddr 192.168.0.0/24 tcp dport 22 accept
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 22 accept
 
 # Replace the default input chain policy to drop all other packets not specified
 nft chain inet filter input '{ type filter hook input priority filter ; policy drop ; }'
@@ -70,13 +73,16 @@ nft add rule inet filter input ct state vmap { established : accept, related : a
 
 # Add rule to comunicate with localhost
 nft add rule inet filter input iifname "lo" accept
+
+# Make the changes persistent
+nft list ruleset > /etc/nftables.conf
 ```
 
 </details>
 
 <hr>
 
-### SSH Hardening
+### SSH Server Setup
 
 - [ ] Public Key Creation
 
@@ -94,7 +100,7 @@ ssh-keygen
 ssh-add ~/.ssh/id_rsa # Linux and Windows Powershell
 
 # Transfer the public key from your client (Windows or Linux) to the server
-scp ~/.ssh/id_rsa.pub user@192.168.0.10:~/.ssh/
+scp ~/.ssh/id_rsa.pub user@192.168.15.180:~/.ssh/
 
 # On the server send content of the .pub file to the file containing all authorized keys
 cat ~/.ssh/id_rsa.pub >> authorized_keys
@@ -152,5 +158,201 @@ sed -i '/#LoginGraceTime/s/^#//' /etc/ssh/sshd_config
 # Restart the service to apply changes
 systemctl restart sshd
 ```
+
+</details>
+
+- [ ] Limit Access User Access
+
+<details>
+<summary>Commands</summary>
+
+```bash
+# Limit Access by username. change <user> for desired user
+echo -e "\nAllowUsers <user>" >> /etc/ssh/sshd_config
+
+# Or limit access by groups. change <group> for desired group
+echo -e "\nAllowGroups <group>" >> /etc/ssh/sshd_config
+
+# Restart the service to apply changes
+systemctl restart sshd
+```
+
+</details>
+
+<hr>
+
+### LDAP Server Setup
+
+- [ ] Installation
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Install the ldap server and utilities
+apt update && apt install -y slapd ldap-utils
+
+# Enable and start the daemon
+systemctl enable slapd && systemctl start slapd
+```
+
+</details>
+
+- [ ] Basic Configuration
+
+<details>
+    <summary>Commands</summary>
+
+Update domain name, base dn and password without dpkg-reconfigure
+
+```bash
+# Create a .ldif to set the base dn, new root dn (admin account) and its password
+cat <<EOF > db.ldif
+# Change base dn
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcSuffix
+olcSuffix: dc=example,dc=com
+-
+# Change the root user name
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcRootDN
+olcRootDN: cn=ldapadm,dc=example,dc=com
+-
+# Change the password for the root user
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcRootPW
+olcRootPW: 
+EOF
+
+# Generate the new password hash and redirect it to the previously created .ldif file
+slapdpasswd >> db.ldif
+
+# Make the changes
+ldapmodify -Y EXTERNAL -H ldapi:/// -f ./db.ldif
+
+# Test the changes
+ldapwhoami -D 'cn=ldapadm,dc=example,dc=com' -W -H ldapi:///
+
+# It should return the root base dn
+dn:cn=ldapadm,dc=example,dc=com
+```
+
+- [ ] Configure SSL/TLS
+
+</details>
+
+- [ ] Enable LDAPS
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Enable LDAPS on port 636
+sed -i '/SLAPD_SERVICES.*"$/s/"$/ ldaps:\/\/\/"/' /etc/default/slapd
+
+# Restart the daemon
+systemctl restart slapd
+```
+
+</details>
+
+- [ ] Set StartTLS/SSL Only
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Force only secure connections
+ldapmodify -Q -Y EXTERNAL -H ldapi:/// <<EOF
+dn: cn=config
+changetype: modify
+replace: olcLocalSSF
+olcLocalSSF: 128
+-
+replace: olcSecurity
+olcSecurity: ssf=128
+EOF
+```
+
+</details>
+
+- [ ] Generate Internal Certificate Chain
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Generate a private key for the Root CA
+openssl genpkey -algorithm RSA -out internal-root-ca.key
+
+# Generate a self-signed certificate for the Root CA
+openssl req -x509 -new -nodes -key internal-root-ca.key -sha256 -days 3650 -out internal-root-ca.pem
+
+# Generate a private key for the Sub-CA
+openssl genpkey -algorithm RSA -out sub-ca.key
+
+# Generate a CSR (Certificate Signing Request) for the Sub-CA
+openssl req -new -key sub-ca.key -out sub-ca.csr
+
+# Sign the Sub-CA CSR with the Root CA to create the Sub-CA certificate
+openssl x509 -req -in sub-ca.csr -CA internal-root-ca.pem -CAkey internal-root-ca.key -CAcreateserial -out internal-sub-ca.pem -days 365
+
+# Generate a private key for the server
+openssl genpkey -algorithm RSA -out server.key
+
+# Generate a CSR for the server
+openssl req -new -key server.key -out server.csr
+
+# Sign the Server CSR with the Sub-CA to create the server certificate
+openssl x509 -req -in server.csr -CA internal-sub-ca.pem -CAkey sub-ca.key -CAcreateserial -out server.crt -days 365
+```
+
+</details>
+
+- [ ] Adjust file permissions
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# After creating the certificate chain adjust file ownership to openldap daemon user
+chown openldap:openldap server.key server.pem internal-sub-ca.pem
+
+# Move the files to its respectives directories
+mv server.pem internal-sub-ca.pem /etc/ssl/certs && mv server.key /etc/ssl/private
+
+# Install acl to a more fine grained permission control
+apt update && apt install -y acl
+
+# Adjust read and execution permissions on the /etc/ssl/private directory I'll be using acl
+setfacl -m user:openldap:rX /etc/ssl/private
+```
+
+</details>
+
+- [ ] Add Certificates
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
+dn: cn=config
+changetype: modify
+replace: olcTLSCACertificateFile
+olcTLSCACertificateFile: /etc/ssl/certs/intermediate.pem
+-
+replace: olcTLSCertificateKeyFile
+olcTLSCertificateKeyFile: /etc/ssl/private/server.key
+-
+replace: olcTLSCertificateFile
+olcTLSCertificateFile: /etc/ssl/certs/server.pem
+EOF
+```
+
+</details>
 
 </details>
