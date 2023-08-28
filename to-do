@@ -1,0 +1,5 @@
+- [x] change the initial config of ldap to squash the changes
+- [x] add commands to add the base dn (for those who didn't use dpkg-reconfigure slapd)
+- [x] Erase the merge blob text on the readme.md
+- [x] Add command to test ssl and starttls connections from the server
+- [ ] add entries related to sni register in the server certificate

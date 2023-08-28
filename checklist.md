@@ -51,7 +51,6 @@ systemctl restart networking
 
 ```bash
 # Backup the original configuration file
->>>>>>> 75badafb0d76c45fde4a89337dfcca112f9475b5
 cp /etc/nftables.conf /etc/nftables.conf.old
 
 # Enable and start nftables
@@ -216,14 +215,10 @@ replace: olcSuffix
 olcSuffix: dc=example,dc=com
 -
 # Change the root user name
-dn: olcDatabase={1}mdb,cn=config
-changetype: modify
 replace: olcRootDN
 olcRootDN: cn=ldapadm,dc=example,dc=com
 -
 # Change the password for the root user
-dn: olcDatabase={1}mdb,cn=config
-changetype: modify
 replace: olcRootPW
 olcRootPW: 
 EOF
@@ -239,6 +234,27 @@ ldapwhoami -D 'cn=ldapadm,dc=example,dc=com' -W -H ldapi:///
 
 # It should return the root base dn
 dn:cn=ldapadm,dc=example,dc=com
+
+# Add the base DN
+ldapwhoami -D 'cn=ldapadm,dc=example,dc=com' -W -H ldapi:/// <<EOF
+dn: dc=example,dc=com
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: example.com
+dc: example
+EOF
+
+# Confirm the changes
+ldapsearch -D cn=ldapadm,dc=example,dc=com -W -H ldapi:/// -b "dc=example,dc=com" "(objectClass=organization)" -LLL
+
+# it should return
+dn: dc=example,dc=com
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: example.com
+dc: example
 ```
 
 - [ ] Configure SSL/TLS
@@ -256,26 +272,6 @@ sed -i '/SLAPD_SERVICES.*"$/s/"$/ ldaps:\/\/\/"/' /etc/default/slapd
 
 # Restart the daemon
 systemctl restart slapd
-```
-
-</details>
-
-- [ ] Set StartTLS/SSL Only
-
-<details>
-    <summary>Commands</summary>
-
-```bash
-# Force only secure connections
-ldapmodify -Q -Y EXTERNAL -H ldapi:/// <<EOF
-dn: cn=config
-changetype: modify
-replace: olcLocalSSF
-olcLocalSSF: 128
--
-replace: olcSecurity
-olcSecurity: ssf=128
-EOF
 ```
 
 </details>
@@ -334,6 +330,24 @@ setfacl -m user:openldap:rX /etc/ssl/private
 
 </details>
 
+- [ ] Add necessary firewall rules
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Add rule to allow LDAP
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 389 accept
+
+# Add rule to allow LDAPS
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 636 accept
+
+# Make changes persistent
+nft list ruleset > /etc/nftables.conf
+```
+
+</details>
+
 - [ ] Add Certificates
 
 <details>
@@ -355,5 +369,45 @@ EOF
 ```
 
 </details>
+
+- [ ] Set StartTLS/SSL Only
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Force only secure connections
+ldapmodify -Q -Y EXTERNAL -H ldapi:/// <<EOF
+dn: cn=config
+changetype: modify
+replace: olcLocalSSF
+olcLocalSSF: 128
+-
+replace: olcSecurity
+olcSecurity: ssf=128
+EOF
+```
+
+</details>
+
+- [ ] Test Connection
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Test secure connection on port 389
+LDAPTLS_CACERT=/etc/ssl/certs/internal-sub-ca.pem ldapwhoami -H ldap://192.168.15.180 -ZZ -x
+
+# Test secure connection on port 636
+LDAPTLS_CACERT=/etc/ssl/certs/intermediate-sub-ca.pem ldapwhoami -H ldaps://192.168.15.180 -x
+
+# Both commands should return
+anonymous
+```
+
+</details>
+
+
 
 </details>
