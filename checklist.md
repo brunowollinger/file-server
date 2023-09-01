@@ -216,7 +216,7 @@ olcSuffix: dc=example,dc=com
 -
 # Change the root user name
 replace: olcRootDN
-olcRootDN: cn=ldapadm,dc=example,dc=com
+olcRootDN: cn=admin,dc=example,dc=com
 -
 # Change the password for the root user
 replace: olcRootPW
@@ -230,13 +230,13 @@ slapdpasswd >> db.ldif
 ldapmodify -Y EXTERNAL -H ldapi:/// -f ./db.ldif
 
 # Test the changes
-ldapwhoami -D 'cn=ldapadm,dc=example,dc=com' -W -H ldapi:///
+ldapwhoami -D 'cn=admin,dc=example,dc=com' -W -H ldapi:///
 
 # It should return the root base dn
-dn:cn=ldapadm,dc=example,dc=com
+dn:cn=admin,dc=example,dc=com
 
 # Add the base DN
-ldapwhoami -D 'cn=ldapadm,dc=example,dc=com' -W -H ldapi:/// <<EOF
+ldapwhoami -D 'cn=admin,dc=example,dc=com' -W -H ldapi:/// <<EOF
 dn: dc=example,dc=com
 objectClass: top
 objectClass: dcObject
@@ -246,7 +246,7 @@ dc: example
 EOF
 
 # Confirm the changes
-ldapsearch -D cn=ldapadm,dc=example,dc=com -W -H ldapi:/// -b "dc=example,dc=com" "(objectClass=organization)" -LLL
+ldapsearch -D cn=admin,dc=example,dc=com -W -H ldapi:/// -b "dc=example,dc=com" "(objectClass=organization)" -LLL
 
 # it should return
 dn: dc=example,dc=com
@@ -257,7 +257,30 @@ o: example.com
 dc: example
 ```
 
-- [ ] Configure SSL/TLS
+</details>
+
+
+
+- [ ] Disable Anonymous Bind
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Add entry to config.ldif
+ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
+dn: cn=config
+changetype: modify
+add: olcDisallows
+olcDisallows: bind_anon
+EOF
+
+# Test anonymous binding
+ldapwhoami -H ldapi:/// -x
+
+# it should return
+additional info: anonymous bind disallowed
+```
 
 </details>
 
@@ -330,24 +353,6 @@ setfacl -m user:openldap:rX /etc/ssl/private
 
 </details>
 
-- [ ] Add necessary firewall rules
-
-<details>
-    <summary>Commands</summary>
-
-```bash
-# Add rule to allow LDAP
-nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 389 accept
-
-# Add rule to allow LDAPS
-nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 636 accept
-
-# Make changes persistent
-nft list ruleset > /etc/nftables.conf
-```
-
-</details>
-
 - [ ] Add Certificates
 
 <details>
@@ -408,6 +413,22 @@ anonymous
 
 </details>
 
+</details>
 
+- [ ] Add necessary firewall rules
+
+<details>
+    <summary>Commands</summary>
+
+```bash
+# Add rule to allow LDAP
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 389 accept
+
+# Add rule to allow LDAPS
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 636 accept
+
+# Make changes persistent
+nft list ruleset > /etc/nftables.conf
+```
 
 </details>
