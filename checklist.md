@@ -1,9 +1,3 @@
-# Server Setup
-
-The purpose of this checklist is provide a guide line to develop a automation script. This Guide focus on Debian 11 Bullseye.
-
-## Checklist
-
 Although not required adding /usr/sbin to the PATH environment variable makes it easier to call some binaries in this guide
 
 ```bash
@@ -13,14 +7,38 @@ export PATH=$PATH:/usr/sbin
 # This change is only for the current session, to make it 
 # permanent to the current user edit the .bashrc file
 echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
+
+# Its necessary to add the .bashrc file to the root home folder too
 ```
 
-### Network Setup
+## Table of Contents
 
-- [ ] Static IP Configuration
+1. [Networking](#networking)<br>
+   1.1. [Static IP Configuration](#static-ip-configuration)<br>
+   1.2. [Basic Firewall Setup](#basic-firewall-setup)<br>
+   
+2. [SSH Server](#ssh-server)<br>
+   2.1. [Public Key Creation](#public-key-creation)<br>
+   2.2. [Public Key Authentication](#public-key-authentication)<br>
+   2.3. [Disable Root Login](#disable-root-login)<br>
+   2.4. [Login Attempt Duration](#login-attempt-duration)<br>
+   2.5. [Limit User Access](#limit-user-access)<br>
+   
+3. [OpenLDAP](#openldap)<br>
+   3.1. [Installation](#installation)<br>
+   3.2. [Basic Configuration](#basic-configuration)<br>
+   3.3. [Disable Anonymous Bind](#disable-anonymous-bind)<br>
+   3.4. [Enable LDAPS](#enable-ldaps)<br>
+   3.5. [Generate Internal Certificate Chain](#generate-internal-certificate-chain)<br>
+   3.6. [Adjust File Permissions](#adjust-file-permissions)<br>
+   3.7. [Add Certificates](#add-certificates)<br>
+   3.8. [Set StartTLS/SSL Only](#set-starttls-ssl-only)<br>
+   3.9. [Test Connection](#test-connection)<br>
+   3.10. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
 
-<details>
-    <summary>Commands</summary>
+## Network Setup
+
+### Static IP Configuration
 
 ```bash
 # Check the available interface name, usually eth0
@@ -42,12 +60,7 @@ iface etho inet static
 systemctl restart networking
 ```
 
-</details>
-
-- [ ] Basic Firewall Setup
-
-<details>
-    <summary>Commands</summary>
+### Basic Firewall Setup
 
 ```bash
 # Backup the original configuration file
@@ -78,16 +91,9 @@ nft add rule inet filter input iifname "lo" accept
 nft list ruleset > /etc/nftables.conf
 ```
 
-</details>
+## SSH Server Setup
 
-<hr>
-
-### SSH Server Setup
-
-- [ ] Public Key Creation
-
-<details>
-<summary>Commands</summary>
+### Public Key Creation
 
 ```bash
 # On the server create the file containing the public keys for every computer the user will access from
@@ -106,12 +112,7 @@ scp ~/.ssh/id_rsa.pub user@192.168.15.180:~/.ssh/
 cat ~/.ssh/id_rsa.pub >> authorized_keys
 ```
 
-</details>
-
-- [ ] Public Key Authentication
-
-<details>
-<summary>Commands</summary>
+### Public Key Authentication
 
 ```bash
 # Backup the configuration file before making any changes
@@ -128,12 +129,7 @@ sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_
 systemctl enable sshd && systemctl restart sshd
 ```
 
-</details>
-
-- [ ] Disable Root Login
-
-<details>
-<summary>Commands</summary>
+### Disable Root Login
 
 ```bash
 # Prevent root user from login in directly from ssh
@@ -144,12 +140,7 @@ sed -i 's/prohibit-password/no/' /etc/ssh/sshd_config
 systemctl restart sshd
 ```
 
-</details>
-
-- [ ] Login Attempt Duration 
-
-<details>
-<summary>Commands</summary>
+### Login Attempt Duration 
 
 ```bash
 # Uncomment the LoginGraceTime and change to a reasonable time
@@ -159,12 +150,7 @@ sed -i '/#LoginGraceTime/s/^#//' /etc/ssh/sshd_config
 systemctl restart sshd
 ```
 
-</details>
-
-- [ ] Limit Access User Access
-
-<details>
-<summary>Commands</summary>
+### Limit Access User Access
 
 ```bash
 # Limit Access by username. change <user> for desired user
@@ -177,16 +163,9 @@ echo -e "\nAllowGroups <group>" >> /etc/ssh/sshd_config
 systemctl restart sshd
 ```
 
-</details>
+## LDAP Server Setup
 
-<hr>
-
-### LDAP Server Setup
-
-- [ ] Installation
-
-<details>
-    <summary>Commands</summary>
+### Installation
 
 ```bash
 # Install the ldap server and utilities
@@ -196,12 +175,7 @@ apt update && apt install -y slapd ldap-utils
 systemctl enable slapd && systemctl start slapd
 ```
 
-</details>
-
-- [ ] Basic Configuration
-
-<details>
-    <summary>Commands</summary>
+### Basic Configuration
 
 Update domain name, base dn and password without dpkg-reconfigure
 
@@ -257,14 +231,7 @@ o: example.com
 dc: example
 ```
 
-</details>
-
-
-
-- [ ] Disable Anonymous Bind
-
-<details>
-    <summary>Commands</summary>
+### Disable Anonymous Bind
 
 ```bash
 # Add entry to config.ldif
@@ -282,12 +249,7 @@ ldapwhoami -H ldapi:/// -x
 additional info: anonymous bind disallowed
 ```
 
-</details>
-
-- [ ] Enable LDAPS
-
-<details>
-    <summary>Commands</summary>
+### Enable LDAPS
 
 ```bash
 # Enable LDAPS on port 636
@@ -297,12 +259,7 @@ sed -i '/SLAPD_SERVICES.*"$/s/"$/ ldaps:\/\/\/"/' /etc/default/slapd
 systemctl restart slapd
 ```
 
-</details>
-
-- [ ] Generate Internal Certificate Chain
-
-<details>
-    <summary>Commands</summary>
+### Generate Internal Certificate Chain
 
 ```bash
 # Generate a private key for the Root CA
@@ -330,12 +287,7 @@ openssl req -new -key server.key -out server.csr
 openssl x509 -req -in server.csr -CA internal-sub-ca.pem -CAkey sub-ca.key -CAcreateserial -out server.crt -days 365
 ```
 
-</details>
-
-- [ ] Adjust file permissions
-
-<details>
-    <summary>Commands</summary>
+### Adjust file permissions
 
 ```bash
 # After creating the certificate chain adjust file ownership to openldap daemon user
@@ -351,12 +303,7 @@ apt update && apt install -y acl
 setfacl -m user:openldap:rX /etc/ssl/private
 ```
 
-</details>
-
-- [ ] Add Certificates
-
-<details>
-    <summary>Commands</summary>
+### Add Certificates
 
 ```bash
 ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
@@ -373,12 +320,7 @@ olcTLSCertificateFile: /etc/ssl/certs/server.pem
 EOF
 ```
 
-</details>
-
-- [ ] Set StartTLS/SSL Only
-
-<details>
-    <summary>Commands</summary>
+### Set StartTLS/SSL Only
 
 ```bash
 # Force only secure connections
@@ -393,12 +335,7 @@ olcSecurity: ssf=128
 EOF
 ```
 
-</details>
-
-- [ ] Test Connection
-
-<details>
-    <summary>Commands</summary>
+### Test Connection
 
 ```bash
 # Test secure connection on port 389
@@ -411,14 +348,7 @@ LDAPTLS_CACERT=/etc/ssl/certs/intermediate-sub-ca.pem ldapwhoami -H ldaps://192.
 anonymous
 ```
 
-</details>
-
-</details>
-
-- [ ] Add necessary firewall rules
-
-<details>
-    <summary>Commands</summary>
+### Add necessary firewall rules
 
 ```bash
 # Add rule to allow LDAP
@@ -430,5 +360,3 @@ nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 636 accept
 # Make changes persistent
 nft list ruleset > /etc/nftables.conf
 ```
-
-</details>
