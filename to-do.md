@@ -15,3 +15,5 @@
 - [ ] smbpasswd -W # set ldap admin password to tdb.secrets
 - [ ] Obs: any user added to ldap need to be added to system as 'system user' preferably
 - [ ] Obs: be aware of default user gid modifications, it tends to break smbldap-useradd
+
+Take a look on the 'idmap' samba config to map correctly the uid and gid mapped in the ldap and system
