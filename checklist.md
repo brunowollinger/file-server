@@ -36,7 +36,13 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    3.9. [Test Connection](#test-connection)<br>
    3.10. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
 
-## Network Setup
+4. [Samba](#samba)<br>
+   4.1. [Installation](#installation)<br>
+   4.2. [Add Necessary Firewall Rules](#add-necessary-firewall-rules-1)<br>
+   4.3. [Basic Configuration](#basic-configuration-1)<br>
+   4.4. [Add Users](#add-users)<br>
+
+## Networking
 
 ### Static IP Configuration
 
@@ -351,12 +357,60 @@ anonymous
 ### Add necessary firewall rules
 
 ```bash
-# Add rule to allow LDAP
-nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 389 accept
-
-# Add rule to allow LDAPS
-nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 636 accept
+# Add rule to allow LDAP and LDAPS
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport { 389, 636 } accept
 
 # Make changes persistent
 nft list ruleset > /etc/nftables.conf
+```
+## Samba
+
+### Installation
+
+```bash
+apt install samba smbldap-tools
+
+# Backup the original configuration file
+cp /etc/samba/smb.conf /etc/samba/smb.conf.old
+```
+
+### Add Necessary Firewall Rules
+
+```bash
+# Open firewall port 445 to local network
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 445 accept
+```
+
+### Basic Configuration
+
+```bash
+# Add basic global configuration
+cat <<EOF > /etc/samba/smb.conf
+[global]
+   # Protocol version restriction
+   client min protocol = SMB3
+   # Enforce connection encryption
+   smb encrypt = required
+   # Enforce Connection Signing
+   server signing = mandatory
+   # Restrict access to local network and localhost
+   hosts allow = 127.0.0.1, 192.168.15.0/24
+   # Deny access to every other network scope
+   hosts deny = 0.0.0.0/0
+   # Specify user level authentication for share access
+   security = USER
+EOF
+
+# Test the configuration file
+testparm -s /etc/samba/smb.conf
+
+# Restart the service
+systemctl restart smbd.service nmbd.service
+```
+
+### Add Users
+
+```bash
+# Add UNIX service user
+useradd -r -M -s /bin/false <username>
 ```
