@@ -6,8 +6,8 @@
 
 ### SAMBA + OpenLDAP Backend
 
-- [ ] apt install samba smbldap-tools
-- [ ] cp /etc/samba/smb.conf /etc/samba/smb.conf.old
+- [x] apt install samba smbldap-tools
+- [x] cp /etc/samba/smb.conf /etc/samba/smb.conf.old
 - [ ] ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/share/doc/samba/examples/samba.ldif
 - [ ] smbldap-config # consult /etc/smbldap-tools/smbldap.conf
 - [ ] smbldap-populate
