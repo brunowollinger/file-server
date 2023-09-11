@@ -37,10 +37,13 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    3.10. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
 
 4. [Samba](#samba)<br>
-   4.1. [Installation](#installation)<br>
+   4.1. [Installation](#installation-1)<br>
    4.2. [Add Necessary Firewall Rules](#add-necessary-firewall-rules-1)<br>
    4.3. [Basic Configuration](#basic-configuration-1)<br>
-   4.4. [Add Users](#add-users)<br>
+   4.4. [LDAP Backend](#ldap-backend)<br>
+   4.5. [Populate LDAP](#populate-ldap)<br>
+   4.6. [Add Users](#add-users)<br>
+   4.7. [Add Groups](#add-groups)<br>
 
 ## Networking
 
@@ -365,6 +368,8 @@ nft list ruleset > /etc/nftables.conf
 ```
 ## Samba
 
+This section configures Samba to work only as a file server
+
 ### Installation
 
 ```bash
@@ -399,6 +404,7 @@ cat <<EOF > /etc/samba/smb.conf
    hosts deny = 0.0.0.0/0
    # Specify user level authentication for share access
    security = USER
+
 EOF
 
 # Test the configuration file
@@ -408,9 +414,123 @@ testparm -s /etc/samba/smb.conf
 systemctl restart smbd.service nmbd.service
 ```
 
+### LDAP Backend
+
+```bash
+# Import Samba schemas into LDAP
+ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/share/doc/samba/examples/LDAP/samba.ldif
+
+# Add ldap specific configuration
+cat <<EOF >> /etc/samba/smb.conf
+   # Set ldap as backend using the LDAP over Unix Domain Socket protocol
+   passdb backend = ldapsam:ldapi:///
+   # Set the base dn
+   ldap suffix = dc=example,dc=com
+   # Set the organizational unit where users are stored
+   ldap user suffix = ou=users
+   # Set the organizational unit where groups are stored
+   ldap group suffix = ou=groups
+   # Set admin user dn
+   ldap admin dn = cn=admin,dc=example,dc=com
+   # Discard ssl/starttls because we're using the ldapi protocol
+   ldap ssl = off
+EOF
+
+# Set the LDAP admin password for Samba
+smbpasswd -W
+
+# Restart the service to apply changes
+systemctl restart smb.service
+```
+
+### Populate LDAP
+
+```bash
+# Run the config script
+smbldap-config
+```
+
+You can answer '.' for prompts that support it, at the end you should have a file like the following:
+
+```bash
+SID="S-1-5-21-260430950-3876747439-1527132114"
+sambaDomain="WORKGROUP"
+slaveLDAP="127.0.0.1"
+slavePort="389"
+masterLDAP="127.0.0.1"
+masterPort="389"
+ldapTLS="0"
+verify=""
+cafile=""
+clientcert=""
+clientkey=""
+suffix="dc=example,dc=com"
+usersdn="ou=users,${suffix}"
+computersdn=",${suffix}"
+groupsdn="ou=groups,${suffix}"
+idmapdn="ou=Idmap,${suffix}"
+sambaUnixIdPooldn="sambaDomainName=WORKGROUP,${suffix}"
+scope="sub"
+password_hash="SSHA"
+password_crypt_salt_format=""
+userLoginShell="/bin/false"
+userHome="/home/%U"
+userHomeDirectoryMode="700"
+userGecos="System User"
+defaultUserGid="513"
+defaultComputerGid="513"
+skeletonDir="/etc/skel"
+shadowAccount="1"
+defaultMaxPasswordAge="45"
+userSmbHome=""
+userProfile=""
+userHomeDrive=""
+userScript=""
+mailDomain=""
+with_smbpasswd="0"
+smbpasswd="/usr/bin/smbpasswd"
+with_slappasswd="0"
+slappasswd="/usr/sbin/slappasswd"
+```
+
+```bash
+# Change user id and group id ranges, adjust the numbers to suit your needs
+ldapmodify -D cn=admin,dc=example,dc=com -W -H ldapi:/// <<EOF
+dn: sambaDomainName=WORKGROUP,dc=example,dc=com
+changetype: modify
+replace: uidNumber
+uidNumber: 2000
+-
+replace: sambaNextRid
+sambaNextRid: 2000
+-
+replace: gidNumber
+gidNumber: 4000
+EOF
+```
+
 ### Add Users
 
 ```bash
-# Add UNIX service user
-useradd -r -M -s /bin/false <username>
+# Create a user using smbldap-useradd
+smbldap-useradd -P -a <username>
+
+# Get the uid of the previouly created user
+smbldap-usershow <username> | awk -F ': ' '/uidNumber/ {print $2}'
+
+# Add UNIX user
+useradd -M -s /bin/false -u <uid> <username>
+```
+
+### Add Groups
+
+```bash
+# Create a group using smbldap-groupadd
+smbldap-groupadd <group name>
+
+# Get the gid of the previouly created group
+smbldap-groupshow <group name> | awk -F ': ' '/gidNumber/ {print $2}'
+
+# Add UNIX group
+groupadd -g <gid> <group name>
 ```
