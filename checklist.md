@@ -17,14 +17,14 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    1.1. [Static IP Configuration](#static-ip-configuration)<br>
    1.2. [Basic Firewall Setup](#basic-firewall-setup)<br>
    
-2. [SSH Server](#ssh-server)<br>
+2. [SSH Server](#ssh-server-setup)<br>
    2.1. [Public Key Creation](#public-key-creation)<br>
    2.2. [Public Key Authentication](#public-key-authentication)<br>
    2.3. [Disable Root Login](#disable-root-login)<br>
    2.4. [Login Attempt Duration](#login-attempt-duration)<br>
    2.5. [Limit User Access](#limit-user-access)<br>
    
-3. [OpenLDAP](#openldap)<br>
+3. [OpenLDAP](#ldap-server-setup)<br>
    3.1. [Installation](#installation)<br>
    3.2. [Basic Configuration](#basic-configuration)<br>
    3.3. [Disable Anonymous Bind](#disable-anonymous-bind)<br>
@@ -32,7 +32,7 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    3.5. [Generate Internal Certificate Chain](#generate-internal-certificate-chain)<br>
    3.6. [Adjust File Permissions](#adjust-file-permissions)<br>
    3.7. [Add Certificates](#add-certificates)<br>
-   3.8. [Set StartTLS/SSL Only](#set-starttls-ssl-only)<br>
+   3.8. [Set StartTLS/SSL Only](#set-starttls/ssl-only)<br>
    3.9. [Test Connection](#test-connection)<br>
    3.10. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
 
@@ -159,7 +159,7 @@ sed -i '/#LoginGraceTime/s/^#//' /etc/ssh/sshd_config
 systemctl restart sshd
 ```
 
-### Limit Access User Access
+### Limit User Access
 
 ```bash
 # Limit Access by username. change <user> for desired user
