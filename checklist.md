@@ -385,7 +385,8 @@ cat <<EOF > /etc/samba/smb.conf
    hosts deny = 0.0.0.0/0
    # Specify user level authentication for share access
    security = USER
-
+   # Specify workgroup
+   workgroup = WORKGROUP
 EOF
 
 # Test the configuration file
@@ -421,7 +422,7 @@ EOF
 smbpasswd -W
 
 # Restart the service to apply changes
-systemctl restart smb.service
+systemctl restart smbd.service
 ```
 
 ### Populate LDAP
@@ -440,9 +441,9 @@ slaveLDAP="127.0.0.1"
 slavePort="389"
 masterLDAP="127.0.0.1"
 masterPort="389"
-ldapTLS="0"
-verify=""
-cafile=""
+ldapTLS="1"
+verify="require"
+cafile="/etc/ssl/certs/full-chain.pem"
 clientcert=""
 clientkey=""
 suffix="dc=example,dc=com"
@@ -472,6 +473,11 @@ with_smbpasswd="0"
 smbpasswd="/usr/bin/smbpasswd"
 with_slappasswd="0"
 slappasswd="/usr/sbin/slappasswd"
+```
+
+Create necessary entries:
+```bash
+smbldap-populate
 ```
 
 ```bash
