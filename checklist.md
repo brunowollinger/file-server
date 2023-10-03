@@ -348,14 +348,13 @@ EOF
 
 ```bash
 # Test secure connection on port 389
-LDAPTLS_CACERT=/etc/ssl/certs/internal-sub-ca.pem ldapwhoami -H ldap://192.168.15.180 -ZZ -x
+LDAPTLS_CACERT=/etc/ssl/certs/intermediate.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldap://192.168.15.180 -ZZ
 
 # Test secure connection on port 636
-LDAPTLS_CACERT=/etc/ssl/certs/intermediate-sub-ca.pem ldapwhoami -H ldaps://192.168.15.180 -x
-
-# Both commands should return
-anonymous
+LDAPTLS_CACERT=/etc/ssl/certs/intermediate.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldaps://192.168.15.180 -ZZ
 ```
+
+Both commands should return the admin DN, in this case `cn=admin,dc=example,dc=com`. Keep in mind that the address after the protocol need to match the alternative name within your server certificate. You can change the `TLS_CACERT` constant inside `/etc/ldap/ldap.conf` to make the certificate implicit.
 
 ### Add necessary firewall rules
 
