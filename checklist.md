@@ -18,11 +18,10 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    1.2. [Basic Firewall Setup](#basic-firewall-setup)<br>
    
 2. [SSH Server](#ssh-server-setup)<br>
-   2.1. [Public Key Creation](#public-key-creation)<br>
-   2.2. [Public Key Authentication](#public-key-authentication)<br>
-   2.3. [Disable Root Login](#disable-root-login)<br>
-   2.4. [Login Attempt Duration](#login-attempt-duration)<br>
-   2.5. [Limit User Access](#limit-user-access)<br>
+   2.1. [Public Key Authentication](#public-key-authentication)<br>
+   2.2. [Disable Root Login](#disable-root-login)<br>
+   2.3. [Login Attempt Duration](#login-attempt-duration)<br>
+   2.4. [Limit User Access](#limit-user-access)<br>
    
 3. [OpenLDAP](#ldap-server-setup)<br>
    3.1. [Installation](#installation)<br>
@@ -33,8 +32,8 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    3.6. [Adjust File Permissions](#adjust-file-permissions)<br>
    3.7. [Add Certificates](#add-certificates)<br>
    3.8. [Set StartTLS/SSL Only](#set-starttls/ssl-only)<br>
-   3.9. [Test Connection](#test-connection)<br>
-   3.10. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
+   3.9. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
+   3.10. [Test Connection](#test-connection)<br>
 
 4. [Samba](#samba)<br>
    4.1. [Installation](#installation-1)<br>
@@ -102,24 +101,12 @@ nft list ruleset > /etc/nftables.conf
 
 ## SSH Server Setup
 
-### Public Key Creation
+In your client computer:
 
-```bash
-# On the server create the file containing the public keys for every computer the user will access from
-mkdir ~/.ssh && touch ~/.ssh/authorized_keys
-
-# Generate the private and public key on the client computer
-ssh-keygen
-
-# Add the newly created key to the ssh-agent, backup you private key and delete it from the computer
-ssh-add ~/.ssh/id_rsa # Linux and Windows Powershell
-
-# Transfer the public key from your client (Windows or Linux) to the server
-scp ~/.ssh/id_rsa.pub user@192.168.15.180:~/.ssh/
-
-# On the server send content of the .pub file to the file containing all authorized keys
-cat ~/.ssh/id_rsa.pub >> authorized_keys
-```
+- Generate your key pair using `ssh-keygen`, keep your private key in a safe place;
+- Add the private key to the ssh agent using `ssh-add` for passwordless login (Optional);
+- Create the `.ssh` directory on the user's home folder;
+- Create the `authorized_keys` file and paste your public key inside
 
 ### Public Key Authentication
 
@@ -344,6 +331,16 @@ olcSecurity: ssf=128
 EOF
 ```
 
+### Add necessary firewall rules
+
+```bash
+# Add rule to allow LDAP and LDAPS
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport { 389, 636 } accept
+
+# Make changes persistent
+nft list ruleset > /etc/nftables.conf
+```
+
 ### Test Connection
 
 ```bash
@@ -356,15 +353,6 @@ LDAPTLS_CACERT=/etc/ssl/certs/intermediate.pem ldapwhoami -D cn=admin,dc=example
 
 Both commands should return the admin DN, in this case `cn=admin,dc=example,dc=com`. Keep in mind that the address after the protocol need to match the alternative name within your server certificate. You can change the `TLS_CACERT` constant inside `/etc/ldap/ldap.conf` to make the certificate implicit.
 
-### Add necessary firewall rules
-
-```bash
-# Add rule to allow LDAP and LDAPS
-nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport { 389, 636 } accept
-
-# Make changes persistent
-nft list ruleset > /etc/nftables.conf
-```
 ## Samba
 
 This section configures Samba to work only as a file server
