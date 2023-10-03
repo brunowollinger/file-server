@@ -28,7 +28,7 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    3.2. [Basic Configuration](#basic-configuration)<br>
    3.3. [Disable Anonymous Bind](#disable-anonymous-bind)<br>
    3.4. [Enable LDAPS](#enable-ldaps)<br>
-   3.5. [Generate Internal Certificate Chain](#generate-internal-certificate-chain)<br>
+   3.5. [Certificate Chain](#certificate-chain)<br>
    3.6. [Adjust File Permissions](#adjust-file-permissions)<br>
    3.7. [Add Certificates](#add-certificates)<br>
    3.8. [Set StartTLS/SSL Only](#set-starttls/ssl-only)<br>
@@ -101,10 +101,13 @@ nft list ruleset > /etc/nftables.conf
 
 ## SSH Server Setup
 
-In your client computer:
+In your client machine:
 
 - Generate your key pair using `ssh-keygen`, keep your private key in a safe place;
 - Add the private key to the ssh agent using `ssh-add` for passwordless login (Optional);
+
+In your server machine:
+
 - Create the `.ssh` directory on the user's home folder;
 - Create the `authorized_keys` file and paste your public key inside
 
@@ -255,42 +258,33 @@ sed -i '/SLAPD_SERVICES.*"$/s/"$/ ldaps:\/\/\/"/' /etc/default/slapd
 systemctl restart slapd
 ```
 
-### Generate Internal Certificate Chain
+### Certificate Chain
 
-```bash
-# Generate a private key for the Root CA
-openssl genpkey -algorithm RSA -out internal-root-ca.key
+You can use both self-signed certificates or well know CAs like Let's Encrypt. In this guide I'll be using self-signed certificates in the following scheme:
 
-# Generate a self-signed certificate for the Root CA
-openssl req -x509 -new -nodes -key internal-root-ca.key -sha256 -days 3650 -out internal-root-ca.pem
+<br>
 
-# Generate a private key for the Sub-CA
-openssl genpkey -algorithm RSA -out sub-ca.key
-
-# Generate a CSR (Certificate Signing Request) for the Sub-CA
-openssl req -new -key sub-ca.key -out sub-ca.csr
-
-# Sign the Sub-CA CSR with the Root CA to create the Sub-CA certificate
-openssl x509 -req -in sub-ca.csr -CA internal-root-ca.pem -CAkey internal-root-ca.key -CAcreateserial -out internal-sub-ca.pem -days 365
-
-# Generate a private key for the server
-openssl genpkey -algorithm RSA -out server.key
-
-# Generate a CSR for the server
-openssl req -new -key server.key -out server.csr
-
-# Sign the Server CSR with the Sub-CA to create the server certificate
-openssl x509 -req -in server.csr -CA internal-sub-ca.pem -CAkey sub-ca.key -CAcreateserial -out server.crt -days 365
+```mermaid
+graph LR
+  A[Root CA] -- Signs--> B[Intermediate CA] -- Signs --> C
+  subgraph Server
+   direction TB
+   C[Server Certificate] -- Have --- D[Private Key]
+  end
 ```
+
+<br>
+
+When exporting the Certificate chain, both CA certificate are combined into a single file `full-chain.pem`, we need the server certificate `server.pem` and it's private key `server.key`.
 
 ### Adjust file permissions
 
 ```bash
 # After creating the certificate chain adjust file ownership to openldap daemon user
-chown openldap:openldap server.key server.pem internal-sub-ca.pem
+chown openldap:openldap server.key server.pem full-chain.pem
 
 # Move the files to its respectives directories
-mv server.pem internal-sub-ca.pem /etc/ssl/certs && mv server.key /etc/ssl/private
+mv server.pem full-chain.pem /etc/ssl/certs && mv server.key /etc/ssl/private
 
 # Install acl to a more fine grained permission control
 apt update && apt install -y acl
@@ -306,7 +300,7 @@ ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
 dn: cn=config
 changetype: modify
 replace: olcTLSCACertificateFile
-olcTLSCACertificateFile: /etc/ssl/certs/intermediate.pem
+olcTLSCACertificateFile: /etc/ssl/certs/full-chain.pem
 -
 replace: olcTLSCertificateKeyFile
 olcTLSCertificateKeyFile: /etc/ssl/private/server.key
@@ -345,10 +339,10 @@ nft list ruleset > /etc/nftables.conf
 
 ```bash
 # Test secure connection on port 389
-LDAPTLS_CACERT=/etc/ssl/certs/intermediate.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldap://192.168.15.180 -ZZ
+LDAPTLS_CACERT=/etc/ssl/certs/full-chain.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldap://192.168.15.180 -ZZ
 
 # Test secure connection on port 636
-LDAPTLS_CACERT=/etc/ssl/certs/intermediate.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldaps://192.168.15.180 -ZZ
+LDAPTLS_CACERT=/etc/ssl/certs/full-chain.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldaps://192.168.15.180 -ZZ
 ```
 
 Both commands should return the admin DN, in this case `cn=admin,dc=example,dc=com`. Keep in mind that the address after the protocol need to match the alternative name within your server certificate. You can change the `TLS_CACERT` constant inside `/etc/ldap/ldap.conf` to make the certificate implicit.
