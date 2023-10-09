@@ -21,4 +21,6 @@ Take a look on the 'idmap' samba config to map correctly the uid and gid mapped 
 - [x] Remove public key creation (SSH) and certificate chain (OpenLDAP) steps
 - [x] Move firewall rule creation (OpenLDAP) higher
 - [x] Review the test connection step (OpenLDAP) because it's not working with ssl enabled and anonymous bind disabled
+- [ ] Add NTP configuration entries
+- [ ] Add DNS congiguration entries
 - [ ] Make the configuration files available in the repository root or exclusive folder
