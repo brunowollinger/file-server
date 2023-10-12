@@ -1,14 +1,15 @@
 Although not required adding /usr/sbin to the PATH environment variable makes it easier to call some binaries in this guide
 
+Add `/usr/sbin` folder to `$PATH` environment variable
+
 ```bash
-# This folder have some binaries that will not be recognized otherwise
 export PATH=$PATH:/usr/sbin
+```
 
-# This change is only for the current session, to make it 
-# permanent to the current user edit the .bashrc file
+Make this change persistent by editing the `.bashrc` file
+
+```bash
 echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
-
-# Its necessary to add the .bashrc file to the root home folder too
 ```
 
 ## Table of Contents
@@ -48,54 +49,86 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
 
 ### Static IP Configuration
 
+Check network interfaces available and its names
+
 ```bash
-# Check the available interface name, usually eth0
 ip addr
+```
 
-# Backup the configuration file before editing
+Backup the configuration file before editing
+
+```bash
 cp /etc/network/interfaces /etc/network/interfaces.old
+```
 
-# Edit the interfaces config file
-vim /etc/network/interfaces
+Edit the respective network interface entry on `/etc/network/interfaces`
 
-# Append or edit the interface entry
+```bash
 auto eht0
 iface etho inet static
-    address 192.168.15.180/24 # IP address / Subnet mask format
+    address 192.168.15.180/24
     gateway 192.168.15.1
+```
 
-# Save the file and restart the service
+Restart the service to apply these changes
+
+```bash
 systemctl restart networking
 ```
 
 ### Basic Firewall Setup
 
+Backup the original configuration file
+
 ```bash
-# Backup the original configuration file
 cp /etc/nftables.conf /etc/nftables.conf.old
+```
 
-# Enable and start nftables
+Enable and start nftables daemon
+
+```bash
 systemctl enable nftables && systemctl start nftables
+```
 
-# Add SSH rule to prevent lockout to the server
+Add SSH rule to prevent lockout from the server
+
+```bash
 nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 22 accept
+```
 
-# Replace the default input chain policy to drop all other packets not specified
+Replace the default input chain policy to drop all other packets not specified
+
+```bash
 nft chain inet filter input '{ type filter hook input priority filter ; policy drop ; }'
+```
 
-# Replace the default forward chain policy to drop all other packets since the server is not a router
+Replace the default forward chain policy to drop all other packets since the server is not a router
+
+```bash
 nft chain inet filter forward '{ type filter hook forward priority filter ; policy drop ; }'
+```
 
-# Add neighbour discovery rule for ipv6
+Add neighbor discovery rule for ipv6
+
+```bash
 nft add rule inet filter input icmpv6 type { nd-neighbor-solicit, nd-router-advert, nd-neighbor-advert } accept
+```
 
-# Add rule for established, related and invalid packets
+Add rule for established, related and invalid packets
+
+```bash
 nft add rule inet filter input ct state vmap { established : accept, related : accept, invalid : drop } 
+```
 
-# Add rule to comunicate with localhost
+Add rule to communicate with localhost
+
+```bash
 nft add rule inet filter input iifname "lo" accept
+```
 
-# Make the changes persistent
+Make these changes persistent
+
+```bash
 nft list ruleset > /etc/nftables.conf
 ```
 
@@ -113,52 +146,59 @@ In your server machine:
 
 ### Public Key Authentication
 
-```bash
-# Backup the configuration file before making any changes
-cp /etc/ssh/sshd_config /etc/ssh/sshd_config.old
+Backup the configuration file before making any changes
 
-# Uncomment the entries related to public key authentication
+```bash
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config.old
+```
+
+Uncomment the entries related to public key authentication
+
+```bash
 sed -i '/#AuthorizedKeysFile/s/^#//' /etc/ssh/sshd_config
 sed -i '/#PermitEmptyPasswords/s/^#//' /etc/ssh/sshd_config
+```
 
-# Disable password authentication
+Disable password authentication
+
+```bash
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-
-# Enable and restart the SSH Server
-systemctl enable sshd && systemctl restart sshd
 ```
 
 ### Disable Root Login
 
+Prevent root user from login in directly from ssh
+
 ```bash
-# Prevent root user from login in directly from ssh
 sed -i '/#PermitRootLogin/s/^#//' /etc/ssh/sshd_config &&
 sed -i 's/prohibit-password/no/' /etc/ssh/sshd_config
-
-# Restart the service to apply changes
-systemctl restart sshd
 ```
 
 ### Login Attempt Duration 
 
-```bash
-# Uncomment the LoginGraceTime and change to a reasonable time
-sed -i '/#LoginGraceTime/s/^#//' /etc/ssh/sshd_config
+Uncomment the `LoginGraceTime` and change to a reasonable time
 
-# Restart the service to apply changes
-systemctl restart sshd
+```bash
+sed -i '/#LoginGraceTime/s/^#//' /etc/ssh/sshd_config
 ```
 
 ### Limit User Access
 
+Limit Access by username. change `<user>` for desired user
+
 ```bash
-# Limit Access by username. change <user> for desired user
 echo -e "\nAllowUsers <user>" >> /etc/ssh/sshd_config
+```
 
-# Or limit access by groups. change <group> for desired group
+Or limit access by groups. change `<group>` for desired group
+
+```bash
 echo -e "\nAllowGroups <group>" >> /etc/ssh/sshd_config
+```
 
-# Restart the service to apply changes
+Finally, restart the service to apply all changes
+
+```bash
 systemctl restart sshd
 ```
 
@@ -166,24 +206,29 @@ systemctl restart sshd
 
 ### Installation
 
-```bash
-# Install the ldap server and utilities
-apt update && apt install -y slapd ldap-utils
+Install the ldap server and utilities
 
-# Enable and start the daemon
+```bash
+apt update && apt install -y slapd ldap-utils
+```
+
+Enable and start the slapd daemon
+
+```bash
 systemctl enable slapd && systemctl start slapd
 ```
 
 ### Basic Configuration
 
-Update domain name, base dn and password without dpkg-reconfigure
+Update domain name, base dn and password. Either with `dpkg-reconfigure slapd` or using the following commands
+
+Create a `.ldif` file containing all desired changes
 
 ```bash
-# Create a .ldif to set the base dn, new root dn (admin account) and its password
 cat <<EOF > db.ldif
 # Change base dn
 dn: olcDatabase={1}mdb,cn=config
-changetype: modify
+changeType: modify
 replace: olcSuffix
 olcSuffix: dc=example,dc=com
 -
@@ -195,21 +240,36 @@ olcRootDN: cn=admin,dc=example,dc=com
 replace: olcRootPW
 olcRootPW: 
 EOF
+```
 
-# Generate the new password hash and redirect it to the previously created .ldif file
+Generate the new password hash and redirect it to the previously created `.ldif` file
+
+```bash
 slapdpasswd >> db.ldif
+```
 
-# Make the changes
+Make the changes
+
+```bash
 ldapmodify -Y EXTERNAL -H ldapi:/// -f ./db.ldif
+```
 
-# Test the changes
+Test the changes
+
+```bash
 ldapwhoami -D 'cn=admin,dc=example,dc=com' -W -H ldapi:///
+```
 
-# It should return the root base dn
+The previous command should return
+
+```
 dn:cn=admin,dc=example,dc=com
+```
 
-# Add the base DN
-ldapwhoami -D 'cn=admin,dc=example,dc=com' -W -H ldapi:/// <<EOF
+Add the base DN
+
+```bash
+ldapadd -D 'cn=admin,dc=example,dc=com' -W -H ldapi:/// <<EOF
 dn: dc=example,dc=com
 objectClass: top
 objectClass: dcObject
@@ -217,11 +277,17 @@ objectClass: organization
 o: example.com
 dc: example
 EOF
+```
 
-# Confirm the changes
-ldapsearch -D cn=admin,dc=example,dc=com -W -H ldapi:/// -b "dc=example,dc=com" "(objectClass=organization)" -LLL
+Confirm the changes
 
-# it should return
+```bash
+ldapsearch -LLL -D cn=admin,dc=example,dc=com -W -H ldapi:/// -b "dc=example,dc=com" "(objectClass=organization)"
+```
+
+The previous command should return
+
+```
 dn: dc=example,dc=com
 objectClass: top
 objectClass: dcObject
@@ -232,29 +298,40 @@ dc: example
 
 ### Disable Anonymous Bind
 
+Modify the `cn=config` DN to disable Anonymous binds other than authentication
+
 ```bash
-# Add entry to config.ldif
 ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
 dn: cn=config
-changetype: modify
+changeType: modify
 add: olcDisallows
 olcDisallows: bind_anon
 EOF
+```
 
-# Test anonymous binding
+Test anonymous binding
+
+```bash
 ldapwhoami -H ldapi:/// -x
+```
 
-# it should return
+The previous command should return
+
+```
 additional info: anonymous bind disallowed
 ```
 
 ### Enable LDAPS
 
-```bash
-# Enable LDAPS on port 636
-sed -i '/SLAPD_SERVICES.*"$/s/"$/ ldaps:\/\/\/"/' /etc/default/slapd
+Enable `slapd` daemon to respond to LDAPS protocol
 
-# Restart the daemon
+```bash
+sed -i '/SLAPD_SERVICES.*"$/s/"$/ ldaps:\/\/\/"/' /etc/default/slapd
+```
+
+Restart the daemon
+
+```bash
 systemctl restart slapd
 ```
 
@@ -279,26 +356,38 @@ When exporting the Certificate chain, both CA certificate are combined into a si
 
 ### Adjust file permissions
 
+After creating the certificate chain adjust file ownership to the openldap daemon user
+
 ```bash
-# After creating the certificate chain adjust file ownership to openldap daemon user
 chown openldap:openldap server.key server.pem full-chain.pem
+```
 
-# Move the files to its respectives directories
+Move the files to its respective directories
+
+```bash
 mv server.pem full-chain.pem /etc/ssl/certs && mv server.key /etc/ssl/private
+```
 
-# Install acl to a more fine grained permission control
+Install acl to a more fine grained permission control
+
+```bash
 apt update && apt install -y acl
+```
 
-# Adjust read and execution permissions on the /etc/ssl/private directory I'll be using acl
+Adjust read and execution permissions on the /etc/ssl/private directory so the openldap user can read the server's private key
+
+```bash
 setfacl -m user:openldap:rX /etc/ssl/private
 ```
 
 ### Add Certificates
 
+Specify the certificates in the `cn=config` DN
+
 ```bash
 ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
 dn: cn=config
-changetype: modify
+changeType: modify
 replace: olcTLSCACertificateFile
 olcTLSCACertificateFile: /etc/ssl/certs/full-chain.pem
 -
@@ -312,11 +401,12 @@ EOF
 
 ### Force Secure Connection
 
+Modify the `cn=config` DN to only allow connections using TLS/SSL
+
 ```bash
-# Force only secure connections
 ldapmodify -Q -Y EXTERNAL -H ldapi:/// <<EOF
 dn: cn=config
-changetype: modify
+changeType: modify
 replace: olcLocalSSF
 olcLocalSSF: 128
 -
@@ -327,21 +417,29 @@ EOF
 
 ### Add necessary firewall rules
 
-```bash
-# Add rule to allow LDAP and LDAPS
-nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport { 389, 636 } accept
+Add rule to allow LDAP and LDAPS from the local network
 
-# Make changes persistent
+```bash
+nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport { 389, 636 } accept
+```
+
+Make changes persistent
+
+```bash
 nft list ruleset > /etc/nftables.conf
 ```
 
 ### Test Connection
 
-```bash
-# Test secure connection on port 389
-LDAPTLS_CACERT=/etc/ssl/certs/full-chain.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldap://192.168.15.180 -ZZ
+Test secure connection on port 389
 
-# Test secure connection on port 636
+```bash
+LDAPTLS_CACERT=/etc/ssl/certs/full-chain.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldap://192.168.15.180 -ZZ
+```
+
+Test secure connection on port 636
+
+```bash
 LDAPTLS_CACERT=/etc/ssl/certs/full-chain.pem ldapwhoami -D cn=admin,dc=example,dc=com -W -H ldaps://192.168.15.180 -ZZ
 ```
 
@@ -353,24 +451,32 @@ This section configures Samba to work only as a file server
 
 ### Installation
 
+Install packages
 ```bash
 apt install samba smbldap-tools
+```
 
-# Backup the original configuration file
+`smbldap-tools` contains scripts to manage samba users in LDAP
+
+Backup the original configuration file
+
+```bash
 cp /etc/samba/smb.conf /etc/samba/smb.conf.old
 ```
 
 ### Add Necessary Firewall Rules
 
+Add firewall rule to allow SMB traffic from local network
+
 ```bash
-# Open firewall port 445 to local network
 nft add rule inet filter input ip saddr 192.168.15.0/24 tcp dport 445 accept
 ```
 
 ### Basic Configuration
 
+Add basic global configuration
+
 ```bash
-# Add basic global configuration
 cat <<EOF > /etc/samba/smb.conf
 [global]
    # Protocol version restriction
@@ -388,21 +494,25 @@ cat <<EOF > /etc/samba/smb.conf
    # Specify workgroup
    workgroup = WORKGROUP
 EOF
+```
 
-# Test the configuration file
-testparm -s /etc/samba/smb.conf
+Reload the configuration
 
-# Restart the service
-systemctl restart smbd.service nmbd.service
+```bash
+smbcontrol all reload-config
 ```
 
 ### LDAP Backend
 
-```bash
-# Import Samba schemas into LDAP
-ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/share/doc/samba/examples/LDAP/samba.ldif
+Import Samba `.ldif` schemas into LDAP
 
-# Add ldap specific configuration
+```bash
+ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/share/doc/samba/examples/LDAP/samba.ldif
+```
+
+Add ldap specific configuration
+
+```bash
 cat <<EOF >> /etc/samba/smb.conf
    # Set ldap as backend using the LDAP over Unix Domain Socket protocol
    passdb backend = ldapsam:ldapi:///
@@ -414,27 +524,34 @@ cat <<EOF >> /etc/samba/smb.conf
    ldap group suffix = ou=groups
    # Set admin user dn
    ldap admin dn = cn=admin,dc=example,dc=com
-   # Discard ssl/starttls because we're using the ldapi protocol
+   # Discard tls/ssl because we're using the ldapi protocol
    ldap ssl = off
 EOF
+```
 
-# Set the LDAP admin password for Samba
+Set the LDAP admin password for Samba
+
+```bash
 smbpasswd -W
+```
 
-# Restart the service to apply changes
-systemctl restart smbd.service
+Reload the configuration
+
+```bash
+smbcontrol all reload-config
 ```
 
 ### Populate LDAP
 
+Run the configuration script
+
 ```bash
-# Run the config script
 smbldap-config
 ```
 
 You can answer '.' for prompts that support it, at the end you should have a file like the following:
 
-```bash
+```
 SID="S-1-5-21-260430950-3876747439-1527132114"
 sambaDomain="WORKGROUP"
 slaveLDAP="127.0.0.1"
@@ -475,16 +592,18 @@ with_slappasswd="0"
 slappasswd="/usr/sbin/slappasswd"
 ```
 
-Create necessary entries:
+Create entries required by samba
+
 ```bash
 smbldap-populate
 ```
 
+Change user id and group id ranges in case the numbers overlap with the systemns UIDs or GIDs
+
 ```bash
-# Change user id and group id ranges, adjust the numbers to suit your needs
 ldapmodify -D cn=admin,dc=example,dc=com -W -H ldapi:/// <<EOF
 dn: sambaDomainName=WORKGROUP,dc=example,dc=com
-changetype: modify
+changeType: modify
 replace: uidNumber
 uidNumber: 2000
 -
@@ -498,26 +617,40 @@ EOF
 
 ### Add Users
 
+Create a user using smbldap-useradd
+
 ```bash
-# Create a user using smbldap-useradd
 smbldap-useradd -P -a <username>
+```
 
-# Get the uid of the previouly created user
+Get the uid of the previously created user
+
+```bash
 smbldap-usershow <username> | awk -F ': ' '/uidNumber/ {print $2}'
+```
 
-# Add UNIX user
+Add system user
+
+```bash
 useradd -M -s /bin/false -u <uid> <username>
 ```
 
 ### Add Groups
 
+Create a group using smbldap-groupadd
+
 ```bash
-# Create a group using smbldap-groupadd
 smbldap-groupadd <group name>
+```
 
-# Get the gid of the previouly created group
+Get the gid of the previously created group
+
+```bash
 smbldap-groupshow <group name> | awk -F ': ' '/gidNumber/ {print $2}'
+```
 
-# Add UNIX group
+Add system user
+
+```bash
 groupadd -g <gid> <group name>
 ```
