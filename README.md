@@ -31,7 +31,7 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    3.5. [Certificate Chain](#certificate-chain)<br>
    3.6. [Adjust File Permissions](#adjust-file-permissions)<br>
    3.7. [Add Certificates](#add-certificates)<br>
-   3.8. [Set StartTLS/SSL Only](#set-starttls/ssl-only)<br>
+   3.8. [Force Secure Connection](#force-secure-connection)<br>
    3.9. [Add Necessary Firewall Rules](#add-necessary-firewall-rules)<br>
    3.10. [Test Connection](#test-connection)<br>
 
@@ -310,7 +310,7 @@ olcTLSCertificateFile: /etc/ssl/certs/server.pem
 EOF
 ```
 
-### Set StartTLS/SSL Only
+### Force Secure Connection
 
 ```bash
 # Force only secure connections
