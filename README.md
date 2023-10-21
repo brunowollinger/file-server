@@ -43,7 +43,6 @@ echo "PATH=$PATH:/usr/sbin" >> ~/.bashrc
    4.4. [LDAP Backend](#ldap-backend)<br>
    4.5. [Populate LDAP](#populate-ldap)<br>
    4.6. [Add Users](#add-users)<br>
-   4.7. [Add Groups](#add-groups)<br>
 
 ## Networking
 
@@ -633,24 +632,4 @@ Add system user
 
 ```bash
 useradd -M -s /bin/false -u <uid> <username>
-```
-
-### Add Groups
-
-Create a group using smbldap-groupadd
-
-```bash
-smbldap-groupadd <group name>
-```
-
-Get the gid of the previously created group
-
-```bash
-smbldap-groupshow <group name> | awk -F ': ' '/gidNumber/ {print $2}'
-```
-
-Add system user
-
-```bash
-groupadd -g <gid> <group name>
 ```
